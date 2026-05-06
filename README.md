@@ -36,13 +36,19 @@ This is a very young project. Breaking API changes are likely before `1.0`.
 
 ## Installation
 
-Add `proptest-zig` as a dependency in your `build.zig.zon`:
+Fetch the latest release into your `build.zig.zon`:
+
+```bash
+zig fetch --save=proptest https://github.com/michaelklishin/proptest-zig/archive/refs/tags/v0.5.0.tar.gz
+```
+
+This adds an entry like:
 
 ```zig
 .dependencies = .{
     .proptest = .{
-        .url = "https://github.com/michaelklishin/proptest-zig/archive/refs/heads/main.tar.gz",
-        .hash = "...",
+        .url = "https://github.com/michaelklishin/proptest-zig/archive/refs/tags/v0.5.0.tar.gz",
+        .hash = "proptest-0.5.0-_GA2m_WOAQCxB73yCtolGqKufs39NkNg6TJlJHdtZqu0",
     },
 },
 ```
