@@ -1,6 +1,6 @@
-# proptest-zig
+# A Property-based Testing Library for Zig
 
-A small, Hypothesis-style property-based testing library for Zig with
+This is a small, Hypothesis-style property-based testing library for Zig with
 integrated binary-search shrinking.
 
 Ported from [Rust `proptest`](https://github.com/proptest-rs/proptest)
