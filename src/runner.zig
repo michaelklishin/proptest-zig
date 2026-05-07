@@ -1,5 +1,4 @@
 const std = @import("std");
-const builtin = @import("builtin");
 const Allocator = std.mem.Allocator;
 
 //
@@ -259,33 +258,22 @@ fn readEnv(comptime T: type, name: [*:0]const u8) ?T {
     return std.fmt.parseInt(T, value, 10) catch null;
 }
 
-/// Cross-platform best-effort entropy: reads from the OS RNG. Panics on
-/// platforms where neither `arc4random_buf` nor `getrandom` is wired up,
-/// directing the caller to `initFromSeed` instead.
+/// Goal: produce a seed that differs between processes when the user has
+/// not pinned one via `PROPTEST_SEED` or `initFromSeed`, so unseeded runs
+/// explore different inputs each time.
+///
+/// Approach: mix a stack address and a code address through SplitMix64.
+/// ASLR randomizes both per process on every modern OS, with no syscall,
+/// libc, or per-OS branch. Quality is well below a CSPRNG, but reproducible
+/// runs go through the explicit-seed path, so this is sufficient.
 fn entropySeed() u64 {
-    var s: u64 = 0;
-    const buf: [*]u8 = @ptrCast(&s);
-    switch (builtin.os.tag) {
-        .macos, .ios, .tvos, .watchos, .visionos, .driverkit, .maccatalyst, .freebsd, .openbsd, .netbsd, .dragonfly, .illumos, .serenity => {
-            std.c.arc4random_buf(buf, @sizeOf(u64));
-        },
-        .linux => {
-            // `getrandom` returns either the byte count or a negative errno.
-            // For counts <= 256 the kernel never short-reads, so `r != 8` is
-            // the cleanest "did the kernel give us a full u64" check and
-            // also catches the negative-errno case (encoded as a large
-            // unsigned value).
-            const r = std.os.linux.getrandom(buf, @sizeOf(u64), 0);
-            if (r != @sizeOf(u64)) {
-                std.debug.panic("proptest: getrandom failed; pass an explicit seed via Runner.initFromSeed", .{});
-            }
-        },
-        else => std.debug.panic(
-            "proptest: no entropy source on this platform ({s}); pass an explicit seed via Runner.initFromSeed",
-            .{@tagName(builtin.os.tag)},
-        ),
-    }
-    return s;
+    var local: u64 = 0;
+    const stack_addr: u64 = @intFromPtr(&local);
+    const code_addr: u64 = @returnAddress();
+    var x = (stack_addr ^ code_addr) +% 0x9E3779B97F4A7C15;
+    x = (x ^ (x >> 30)) *% 0xBF58476D1CE4E5B9;
+    x = (x ^ (x >> 27)) *% 0x94D049BB133111EB;
+    return x ^ (x >> 31);
 }
 
 //
