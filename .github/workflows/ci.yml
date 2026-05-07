@@ -1,0 +1,80 @@
+name: Build and test
+
+on:
+  push:
+    paths:
+      - ".github/workflows/ci.yml"
+      - "src/**"
+      - "tests/**"
+      - "build.zig"
+      - "build.zig.zon"
+  pull_request: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  fmt:
+    name: Format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
+      - name: Check formatting
+        run: zig fmt --check build.zig src tests
+
+  build-and-test:
+    name: Build and test
+    needs: fmt
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-22.04
+          - ubuntu-24.04
+          - macos-latest
+          - windows-latest
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+        with:
+          version: "0.16.0"
+
+      - name: Build
+        run: zig build --summary all
+
+      - name: Run tests
+        run: zig build test --summary all
+
+  dependabot:
+    needs: [fmt, build-and-test]
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+      contents: write
+    if: ${{ github.actor == 'dependabot[bot]' && github.event_name == 'pull_request' }}
+    steps:
+      - id: metadata
+        uses: dependabot/fetch-metadata@v3
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+      - run: |
+          gh pr review --approve "$PR_URL"
+          gh pr merge --merge --auto "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
